@@ -1,4 +1,4 @@
-# FastAPI Request Logger
+#LogPulses 
 
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -25,14 +25,14 @@ A comprehensive, production-ready logging middleware for FastAPI applications th
 ## 📦 Installation
 
 ```bash
-pip install fastapi-request-logger
+pip install logpulses
 ```
 
 Or install from source:
 
 ```bash
-git clone https://github.com/yourusername/fastapi-request-logger.git
-cd fastapi-request-logger
+git clone https://github.com/Hari-vasan/logpulses.git
+cd logpulses
 pip install -e .
 ```
 
@@ -40,7 +40,7 @@ pip install -e .
 
 ```python
 from fastapi import FastAPI, Request
-from fastapi_request_logger import RequestLoggingMiddleware
+from logpulses.logger import RequestLoggingMiddleware
 
 app = FastAPI()
 
@@ -130,7 +130,7 @@ app.add_middleware(
 ### Custom Configuration (Advanced)
 
 ```python
-from fastapi_request_logger import RequestLoggingMiddleware, LogConfig
+from logpulses.logger import RequestLoggingMiddleware, LogConfig
 
 config = LogConfig(
     exclude_paths=["/health", "/metrics"],
@@ -242,15 +242,15 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📧 Contact
 
-- **Author:** Your Name
-- **Email:** your.email@example.com
-- **GitHub:** [@yourusername](https://github.com/yourusername)
+- **Author:** Hariharan S
+- **Email:** hvasan59@gmail.com
+- **GitHub:** [@Hari-vasan](https://github.com/Hari-vasan)
 
 ## 🔗 Links
 
-- [Documentation](https://github.com/yourusername/fastapi-request-logger#readme)
-- [Issue Tracker](https://github.com/yourusername/fastapi-request-logger/issues)
-- [PyPI Package](https://pypi.org/project/fastapi-request-logger/)
+- [Documentation](https://github.com/Hari-vasan/logpulses#readme)
+- [Issue Tracker](https://github.com/Hari-vasan/logpulses/issues)
+- [PyPI Package](https://pypi.org/project/logpulses/)
 
 ---
 
