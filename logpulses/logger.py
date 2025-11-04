@@ -9,13 +9,16 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response, StreamingResponse
 from starlette.datastructures import Headers
-from typing import Callable, Any
+from typing import Callable, Any, Optional
 import contextvars
 from functools import wraps
 from decimal import Decimal
 
 # Import database monitoring
 from logpulses.db_monitor import db_operations, initialize_db_monitoring, safe_serialize
+
+# Import log storage
+from logpulses.log_storage import create_log_storage, LogStorage
 
 
 class CustomJSONEncoder(json.JSONEncoder):
@@ -134,18 +137,90 @@ def print_log(log_data):
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """
-    Universal middleware that logs ALL requests automatically with DB monitoring.
+    Universal middleware that logs ALL requests automatically with DB monitoring and storage.
 
     ✅ NO DECORATORS NEEDED!
     ✅ Automatically detects and tracks DB operations
     ✅ Supports MongoDB, MySQL, PostgreSQL, SQLAlchemy, Redis, Cassandra
     ✅ Tracks connection time and query execution time
     ✅ Works with all HTTP methods
+    ✅ Supports log storage (local files, databases)
+    ✅ Automatic log cleanup
     """
 
-    def __init__(self, app, exclude_paths: list = None, enable_db_monitoring: bool = True):
+    def __init__(
+        self, 
+        app, 
+        exclude_paths: list = None, 
+        enable_db_monitoring: bool = True,
+        storage_type: Optional[str] = None,
+        connection_string: Optional[str] = None,
+        cleanup_days: int = 7,
+        print_logs: bool = True,
+        **storage_kwargs
+    ):
+        """
+        Initialize middleware with optional log storage.
+        
+        Args:
+            app: FastAPI/Starlette app
+            exclude_paths: List of paths to exclude from logging
+            enable_db_monitoring: Enable database operation monitoring
+            storage_type: Type of storage ('local', 'mongodb', 'mysql', 'postgresql', 'sqlite', None)
+            connection_string: Database connection string (required for db storage)
+            cleanup_days: Days after which to delete old logs (default: 7)
+            print_logs: Whether to print logs to console (default: True)
+            **storage_kwargs: Additional storage-specific arguments
+            
+        Examples:
+            # Console logging only (default)
+            app.add_middleware(RequestLoggingMiddleware)
+            
+            # Local file storage
+            app.add_middleware(
+                RequestLoggingMiddleware,
+                storage_type='local',
+                cleanup_days=7,
+                log_dir='logs'
+            )
+            
+            # MongoDB storage
+            app.add_middleware(
+                RequestLoggingMiddleware,
+                storage_type='mongodb',
+                connection_string='mongodb://localhost:27017',
+                database_name='logs_db',
+                cleanup_days=30
+            )
+            
+            # MySQL storage
+            app.add_middleware(
+                RequestLoggingMiddleware,
+                storage_type='mysql',
+                connection_string='mysql://user:pass@localhost:3306/logs_db',
+                cleanup_days=7
+            )
+            
+            # PostgreSQL storage
+            app.add_middleware(
+                RequestLoggingMiddleware,
+                storage_type='postgresql',
+                connection_string='postgresql://user:pass@localhost:5432/logs_db',
+                cleanup_days=14
+            )
+            
+            # SQLite storage
+            app.add_middleware(
+                RequestLoggingMiddleware,
+                storage_type='sqlite',
+                db_path='logs.db',
+                cleanup_days=7
+            )
+        """
         super().__init__(app)
         self.exclude_paths = exclude_paths or []
+        self.print_logs = print_logs
+        self.storage: Optional[LogStorage] = None
 
         # Initialize database monitoring patches
         if enable_db_monitoring:
@@ -153,6 +228,20 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 initialize_db_monitoring()
             except Exception as e:
                 print(f"⚠️  Warning: Failed to initialize database monitoring: {e}")
+
+        # Initialize log storage if specified
+        if storage_type:
+            try:
+                self.storage = create_log_storage(
+                    storage_type=storage_type,
+                    connection_string=connection_string,
+                    cleanup_days=cleanup_days,
+                    **storage_kwargs
+                )
+                print(f"✅ Log storage initialized: {storage_type.upper()} (cleanup: {cleanup_days} days)")
+            except Exception as e:
+                print(f"❌ Failed to initialize log storage: {e}")
+                print(f"⚠️  Falling back to console logging only")
 
     async def dispatch(self, request: Request, call_next):
         # Skip excluded paths
@@ -435,7 +524,16 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 }
 
-            print_log(log_data)
+            # Print logs to console if enabled
+            if self.print_logs:
+                print_log(log_data)
+
+            # Store logs if storage is configured
+            if self.storage:
+                try:
+                    self.storage.store_log(log_data)
+                except Exception as e:
+                    print(f"⚠️  Warning: Failed to store log: {e}")
 
         return response
 
@@ -470,6 +568,14 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             return "Server Error - Backend issue"
         else:
             return "Unknown Error"
+
+    def __del__(self):
+        """Cleanup storage connection on middleware destruction"""
+        if self.storage:
+            try:
+                self.storage.close()
+            except Exception:
+                pass
 
 
 # Decorator is now completely unnecessary - kept only for backward compatibility
